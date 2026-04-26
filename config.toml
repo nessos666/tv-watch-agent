@@ -1,0 +1,8 @@
+[cdp]
+host = "localhost"
+port = 9222
+
+[agent]
+poll_interval_sec = 5
+output_dir = "output"
+screenshot_on_session_change = true
