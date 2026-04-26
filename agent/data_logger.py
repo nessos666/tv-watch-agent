@@ -1,6 +1,7 @@
 # agent/data_logger.py
 from __future__ import annotations
 import csv
+import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,3 +82,17 @@ class DataLogger:
         path = self.shots_dir / fname
         path.write_bytes(png_data)
         return str(path)
+
+    def backup(self, label: str) -> "Path | None":
+        """Kopiert die aktuelle CSV in output/backups/ mit Timestamp + Label.
+
+        Gibt den Backup-Pfad zurück, oder None wenn noch keine CSV existiert.
+        """
+        if not self.csv_path.exists():
+            return None
+        backups_dir = self.output_dir / "backups"
+        backups_dir.mkdir(exist_ok=True)
+        ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+        dest = backups_dir / f"watch_log_{ts}_{label}.csv"
+        shutil.copy2(self.csv_path, dest)
+        return dest

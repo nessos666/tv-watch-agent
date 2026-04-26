@@ -52,3 +52,21 @@ def test_screenshot_saved():
         )
         assert Path(path).exists()
         assert Path(path).read_bytes() == b"PNG_FAKE_DATA"
+
+
+def test_backup_creates_copy():
+    with tempfile.TemporaryDirectory() as d:
+        logger = DataLogger(output_dir=Path(d))
+        logger.log(make_snapshot())
+        bak = logger.backup("manual")
+        assert bak is not None
+        assert bak.exists()
+        assert bak.name.endswith("_manual.csv")
+        assert (Path(d) / "backups").is_dir()
+
+
+def test_backup_returns_none_if_no_csv():
+    with tempfile.TemporaryDirectory() as d:
+        logger = DataLogger(output_dir=Path(d))
+        result = logger.backup("empty")
+        assert result is None
