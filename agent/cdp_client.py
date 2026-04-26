@@ -51,7 +51,8 @@ class CdpClient:
         if not self._ws_url:
             self.connect()
         try:
-            ws = websocket.create_connection(self._ws_url, timeout=10)
+            # origin="" verhindert den Origin-Header – Chrome CDP lehnt ihn sonst ab
+            ws = websocket.create_connection(self._ws_url, timeout=10, origin="")
         except websocket.WebSocketException as e:
             raise RuntimeError(f"WebSocket-Verbindung fehlgeschlagen: {e}") from e
         try:
