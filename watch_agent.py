@@ -38,7 +38,7 @@ def main() -> None:
     cfg = load_config(Path(args.config))
     interval = args.interval or cfg["agent"]["poll_interval_sec"]
     output_dir = Path(args.output or cfg["agent"]["output_dir"])
-    backup_every = cfg["agent"].get("backup_every_n_snapshots", 10)
+    backup_every = max(1, cfg["agent"].get("backup_every_n_snapshots", 10))
 
     print("TV Watch Agent gestartet")
     print(f"Output: {output_dir.resolve()}")
@@ -67,14 +67,16 @@ def main() -> None:
                     )
                     if snapshots_total % backup_every == 0:
                         bak = logger.backup(f"auto_{snapshots_total}")
-                        print(f"  [BACKUP] -> {bak}")
+                        if bak:
+                            print(f"  [BACKUP] -> {bak}")
             except Exception as e:  # noqa: BLE001
                 print(f"  WARN: {e}", file=sys.stderr)
             time.sleep(interval)
     except KeyboardInterrupt:
-        print(
-            f"\nAgent gestoppt. {snapshots_total} Snapshots -> {output_dir.resolve()}"
-        )
+        bak = logger.backup("exit")
+        if bak:
+            print(f"\nBackup gespeichert: {bak}")
+        print(f"Agent gestoppt. {snapshots_total} Snapshots -> {output_dir.resolve()}")
 
 
 if __name__ == "__main__":
