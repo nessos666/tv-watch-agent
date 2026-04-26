@@ -18,7 +18,7 @@ class CdpClient:
         try:
             resp = requests.get(f"http://{self.host}:{self.port}/json/list", timeout=5)
             targets = resp.json()
-        except Exception:
+        except (requests.RequestException, ValueError):
             return None
         tv = next(
             (
@@ -50,12 +50,17 @@ class CdpClient:
         """Schickt einen CDP-Befehl via WebSocket (sync)."""
         if not self._ws_url:
             self.connect()
-        ws = websocket.create_connection(self._ws_url, timeout=10)
+        try:
+            ws = websocket.create_connection(self._ws_url, timeout=10)
+        except websocket.WebSocketException as e:
+            raise RuntimeError(f"WebSocket-Verbindung fehlgeschlagen: {e}") from e
         try:
             msg = json.dumps({"id": 1, "method": method, "params": params or {}})
             ws.send(msg)
             raw = ws.recv()
             return json.loads(raw)
+        except (websocket.WebSocketException, json.JSONDecodeError) as e:
+            raise RuntimeError(f"CDP-Kommunikationsfehler: {e}") from e
         finally:
             ws.close()
 
@@ -76,4 +81,6 @@ class CdpClient:
         result = self._send_cdp("Page.captureScreenshot", {"format": "png"})
         inner = result.get("result", {})
         data = inner.get("data", "")
+        if not data:
+            raise RuntimeError("Screenshot fehlgeschlagen – keine Daten vom CDP")
         return base64.b64decode(data)
