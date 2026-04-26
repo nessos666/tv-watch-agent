@@ -6,3 +6,4 @@ port = 9222
 poll_interval_sec = 5
 output_dir = "output"
 screenshot_on_session_change = true
+backup_every_n_snapshots = 10
