@@ -73,6 +73,7 @@ def main() -> None:
                 print(f"  WARN: {e}", file=sys.stderr)
             time.sleep(interval)
     except KeyboardInterrupt:
+        cdp.close()
         bak = logger.backup("exit")
         if bak:
             print(f"\nBackup gespeichert: {bak}")

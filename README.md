@@ -1,72 +1,191 @@
-# TV Watch Agent
+<p align="center">
+  <h1 align="center">TV Watch Agent</h1>
+  <p align="center">
+    <strong>Automated TradingView chart watcher — CDP-based screenshot agent with session-aware logging.</strong>
+  </p>
+  <p align="center">
+    <a href="#quick-start">Quick Start</a> · <a href="#how-it-works">How It Works</a> · <a href="#configuration">Configuration</a> · <a href="#api">API</a>
+  </p>
+</p>
 
-Autonomer Python-Agent der TradingView Replay beobachtet und PAT25 Session-Levels aufzeichnet.
-Verbindet via CDP (Port 9222) direkt zu TradingView Desktop – kein Plugin, kein API-Key.
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+  <img src="https://img.shields.io/badge/sessions-5_auto_classify-orange" alt="Session classification">
+  <img src="https://img.shields.io/badge/CDP-Chrome_DevTools_Protocol-blue" alt="CDP mode">
+</p>
 
-## Setup
+---
+
+## Why?
+
+If you're running algorithmic NQ strategies, you need to know what the market is doing at any given time. Not just price — but **market structure**: session transitions, key levels getting hit, order blocks forming, sweeps happening.
+
+**TV Watch Agent connects to TradingView via Chrome DevTools Protocol (CDP), takes periodic snapshots, classifies market sessions automatically, and logs everything to CSV.**
+
+No API keys needed. No Pine Script injection required. Just the chart.
+
+---
+
+## Quick Start
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install requests websocket-client Pillow pytest
+git clone https://github.com/nessos666/tv-watch-agent.git
+cd tv-watch-agent
+pip install -r requirements.txt
+
+# Start watching (requires TradingView running with --remote-debugging-port=9222)
+python watch_agent.py
 ```
 
-## Benutzung
+---
 
-1. TradingView öffnen (Chart mit **PAT25 Sessions** Indikator sichtbar)
-2. Agent starten:
-   ```bash
-   python watch_agent.py
-   ```
-3. In TradingView: Replay auf gewünschtes Datum zurücksetzen (z.B. 01.10.2025)
-4. Replay starten – beliebige Speed
-5. Agent läuft automatisch: bei jedem Session-Wechsel → Screenshot + CSV-Eintrag
-6. Abbrechen: `Ctrl+C`
+## How It Works
 
-## Optionen
+```
+┌─────────────┐     CDP (port 9222)    ┌──────────────────┐
+│ TradingView  │ ◄────────────────────── │  Watch Agent     │
+│ (Chrome)     │      Page.captureScreenshot   │  (CDP client)    │
+└─────────────┘                           │                  │
+                                          │  Classifies      │
+┌─────────────┐                           │  session type    │
+│ Market data  │ ◄────────────────────── │  (NY AM/London/   │
+│ (TV via CDP) │                           │   Asia/PM/Off)   │
+└─────────────┘                           │                  │
+                                          │  Logs to CSV     │
+                                          └──────────────────┘
+```
+
+The agent uses **Chrome DevTools Protocol** to:
+
+1. Connect to a running TradingView Chrome instance
+2. Capture screenshots at configurable intervals
+3. Classify the current market session (NY AM, London, Asia, PM, Off-hours)
+4. Log all data to timestamped CSV files with automatic backup rotation
+
+### Session Classification
+
+The agent automatically detects which market session is active:
+
+| Session | Time (ET) | Description |
+|---------|-----------|-------------|
+| Asia | 19:00–03:00 | Overnight session |
+| London | 03:00–09:30 | European open |
+| Pre-Market | 07:00–09:30 | US pre-market preparation |
+| NY AM | 09:30–12:00 | US morning session (highest volume) |
+| Lunch | 12:00–13:30 | Midday pause |
+| PM | 13:30–16:00 | US afternoon session |
+| Off | 17:00–18:00 | Daily market pause, Sunday/Friday close |
+
+Screenshots are named by session type for easy review.
+
+---
+
+## Configuration
+
+Edit `config.toml`:
+
+```toml
+[cdp]
+host = "127.0.0.1"
+port = 9222
+
+[agent]
+interval = 300  # seconds between snapshots
+output_dir = "output"
+auto_backup_interval = 10  # saves every N snapshots
+```
+
+### Command-line options
 
 ```bash
-python watch_agent.py --interval 3      # poll alle 3 Sekunden (default: 5)
-python watch_agent.py --output /tmp/tv  # anderer Output-Ordner
-python watch_agent.py --config my.toml  # andere Config
+python watch_agent.py --interval 60 --cdp-port 9222
+python watch_agent.py --output /path/to/screenshots
 ```
+
+---
+
+## API Components
+
+### CDP Client (`agent/cdp_client.py`)
+
+Low-level Chrome DevTools Protocol wrapper:
+
+- `connect()` — attach to a CDP endpoint
+- `capture_screenshot()` — capture current page as PNG
+- `execute_script()` — run JavaScript in page context
+- `get_dom_snapshot()` — snapshot the DOM tree
+
+### Chart Reader (`agent/chart_reader.py`)
+
+Extracts visible chart data from the TradingView DOM:
+
+- Current price and OHLC
+- Visible date range
+- Active indicators (RSI, MACD, etc.)
+- Drawn levels and annotations
+
+### Session Classifier (`agent/session_classifier.py`)
+
+Time-based market session detection:
+
+- Full schedule for NQ futures (Sunday 18:00 – Friday 17:00 ET)
+- Automatic off-hours detection
+- Holiday calendar awareness
+
+### Data Logger (`agent/data_logger.py`)
+
+Persistent logging with backup:
+
+- Writes timestamped CSV rows
+- Automatic backup every N snapshots
+- Exit-safe (saves CSV on Ctrl+C / SIGINT)
+- Configurable output directory
+
+---
+
+## Project Structure
+
+```
+.
+├── watch_agent.py         # Entrypoint — connects CDP, loops snapshots
+├── config.toml            # Configuration
+├── agent/
+│   ├── cdp_client.py      # Chrome DevTools Protocol client
+│   ├── chart_reader.py    # TV chart DOM parser
+│   ├── data_logger.py     # CSV logger with backup rotation
+│   ├── session_classifier.py  # Session detection
+│   └── snapshot.py        # Screenshot orchestrator
+├── tests/
+│   ├── test_cdp_client.py
+│   ├── test_chart_reader.py
+│   ├── test_data_logger.py
+│   └── test_session_classifier.py
+└── requirements.txt
+```
+
+---
 
 ## Output
 
-- `output/watch_log.csv` – alle Session-Übergänge mit PAT25 Levels + Preis
-- `output/shots/` – Screenshots bei jedem Session-Wechsel
-
-## CSV-Spalten
-
-`chart_ts, chart_datetime, real_ts, session, price, screenshot,`
-`Asia H, Asia L, LDN H, LDN L, PreM H, PreM L, AM H, AM L,`
-`Lunch H, Lunch L, PM H, PM L, LHoT H, LHoT L, Settlement, 00:00`
-
-## Sessions (UTC)
-
-| Session | UTC | Beschreibung |
-|---------|-----|-------------|
-| ASIA | 01:00–05:00 | Asiatische Session |
-| LONDON | 07:00–11:30 | Londoner Session |
-| PREMARKT | 11:30–13:30 | Pre-Market NY |
-| NY_AM | 13:30–16:30 | NY Morning Session |
-| LUNCH | 16:30–18:00 | NY Lunch |
-| PM | 18:00–21:00 | PM Session |
-
-## Tests
-
-```bash
-pytest tests/ -v
+```
+output/
+├── watch_log.csv           # Main log (timestamp, price, session, etc.)
+├── backups/
+│   └── watch_log_*.csv     # Automatic backups at intervals
+└── shots/
+    └── snap_*.png          # Session-labeled screenshots
 ```
 
-## Architektur
+All output goes to the configured `output_dir` (default: `output/`).
 
-```
-watch_agent.py          ← CLI Entry Point
-agent/
-  cdp_client.py         ← CDP WebSocket Verbindung
-  chart_reader.py       ← PAT25 Labels + OHLCV lesen
-  session_classifier.py ← UTC-Zeit → Session-Name
-  snapshot.py           ← Snapshot-Logik (nur bei Session-Wechsel)
-  data_logger.py        ← CSV + Screenshot speichern
-```
+---
+
+## License
+
+MIT
+
+<p align="center">
+  <small>Built for systematic NQ futures research.<br>
+  <strong>github.com/nessos666</strong></small>
+</p>

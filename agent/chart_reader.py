@@ -28,8 +28,8 @@ _LABELS_JS = """
         var coll = inner.get(false);
         if (!coll || !coll._primitivesDataById) continue;
         coll._primitivesDataById.forEach(function(v) {
-          var txt = v._data ? (v._data.text || '') : '';
-          var price = v._data ? (v._data.price || v._data.y || 0) : 0;
+          var txt = v.t || '';
+          var price = v.y != null ? Math.round(v.y * 100) / 100 : 0;
           if (txt && price) results.push({text: txt, price: price});
         });
       } catch(e) {}

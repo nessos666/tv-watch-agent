@@ -83,7 +83,7 @@ class DataLogger:
         path.write_bytes(png_data)
         return str(path)
 
-    def backup(self, label: str) -> "Path | None":
+    def backup(self, label: str) -> Path | None:
         """Kopiert die aktuelle CSV in output/backups/ mit Timestamp + Label.
 
         Gibt den Backup-Pfad zurück, oder None wenn noch keine CSV existiert.
@@ -93,6 +93,6 @@ class DataLogger:
         backups_dir = self.output_dir / "backups"
         backups_dir.mkdir(exist_ok=True)
         ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-        dest = backups_dir / f"watch_log_{ts}_{label}.csv"
+        dest = backups_dir / f"{self.csv_path.stem}_{ts}_{label}.csv"
         shutil.copy2(self.csv_path, dest)
         return dest
